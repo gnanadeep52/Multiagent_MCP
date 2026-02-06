@@ -1,0 +1,7 @@
+modelcontextprotocol
+tavily-python
+langchain-openai
+langchain-community
+python-dotenv
+pydantic
+streamlit
