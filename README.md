@@ -1,218 +1,147 @@
-# Deep Draft
+# DeepDraft — Autonomous Multi-Agent Research & Document Generation
+
+A production-style **multi-agent AI system** that takes any topic or question and autonomously researches the web, builds a structured outline, writes a full document, and summarizes key takeaways — all orchestrated via **LangGraph**, **MCP (Model Context Protocol)** tool server, and a **Streamlit** chat interface.
+
+> **Skills demonstrated:** Multi-agent orchestration · LangGraph · MCP protocol · Agentic tool use · Streamlit · Tavily web search · Async agent pipelines
+
+---
+
+## What It Does
+
+Instead of one large LLM prompt, this system breaks work into **specialized agents** that run in sequence:
+
+1. **Note-Taker Agent** → Takes the user topic, builds a clean structured outline
+2. **Doc-Writer Agent** → Uses the outline to write a full, formatted document
+3. **Summary Agent** → Extracts 5–8 key bullet-point takeaways
 
-It is an AI system that can research a topic and write a document about it automatically.
+All agents communicate through a shared **MCP server** that exposes controlled tools (web search, web scraping, file read/write) — agents cannot access the internet or filesystem directly.
 
-Instead of using one large prompt, the system is split into multiple small agents, each responsible for one task (research, outlining, writing).
+---
 
-The system automatically:
+## Architecture
 
-- Searches the web for up-to-date information  
-- Reads important webpages  
-- Creates a clean outline  
-- Writes a full, structured document based on that outline  
-- Shows you key summary points
+```
+User Input (Streamlit Chat)
+        ↓
+  Note-Taker Agent          ← LangGraph node: generates structured outline
+        ↓                       calls MCP tools: web_search, scrape_webpage
+  Doc-Writer Agent          ← LangGraph node: writes full document from outline
+        ↓                       calls MCP tools: create_outline, write_document
+  Summary Extraction        ← Extracts key points from final_content
+        ↓
+  Streamlit UI              ← Streams Outline → Full Document → Summary Points
+        ↓
+  MCP Server (Tool Layer)   ← web_search (Tavily) · scrape_webpage · file I/O
+```
 
+---
 
-## Use Case
+## Agent Pipeline
 
-You provide a question or topic.
+```mermaid
+flowchart TD
+    U([User Topic]) --> NTA[Note-Taker Agent]
+    NTA -->|outline_points| DWA[Doc-Writer Agent]
+    DWA -->|final_content + summary_points| UI[Streamlit UI]
 
-The system will:
+    subgraph MCP_SERVER["MCP Tool Server"]
+        T1[web_search - Tavily]
+        T2[scrape_webpage]
+        T3[create_outline - file write]
+        T4[write_document - file write]
+        T5[read / edit document]
+    end
 
- - Search the web for relevant information
+    NTA --> T1
+    NTA --> T2
+    NTA --> T3
+    DWA --> T4
+    DWA --> T5
+```
 
- - Read and extract content from webpages
+---
 
- - Create a structured outline
+## Tech Stack
 
- - Write a final document based on that outline
+| Component         | Technology |
+|-------------------|------------|
+| Agent Orchestration | LangGraph (graph-based async agent execution) |
+| Tool Server       | MCP (Model Context Protocol) |
+| Web Search        | Tavily Search API |
+| LLM               | Google Gemini (via LangChain) |
+| UI                | Streamlit chat interface |
+| Language          | Python 3.10+ (async/await throughout) |
 
- 
-## What You See in the Streamlit Interface
+---
 
-When you run the app (`streamlit run app.py`) and type a question, this is what appears step by step in the chat:
+## Project Structure
 
-1. Your question is shown (as a user message)
+```
+Multiagent_MCP/
+├── app.py                  # Streamlit UI: chat loop, agent invocation, message rendering
+├── main.py                 # CLI entry point
+├── agents/
+│   ├── note_taker_agent.py # Agent 1: research + outline generation
+│   └── doc_writer_agent.py # Agent 2: full document writing + summary extraction
+├── graph/                  # LangGraph graph definitions and state schemas
+├── mcp_server/             # MCP tool server: web search, scraping, file I/O tools
+├── client/                 # MCP client for agent-to-tool-server communication
+├── temp/                   # Generated outputs: outline.txt, answer.txt
+└── requirements.txt
+```
 
-2. The assistant replies with:
-   - **Outline**  
-     A clean list of main points
+---
 
-3. After a short pause:
-   - **Full Document**  
-     The complete markdown-formatted explanation / report  
-     (with headings, paragraphs, bullets — everything the LLM wrote)
+## Setup & Run
 
-4. After another short pause:
-   - **Key Summary Points**  
-     5–8 concise bullet points  
-     (the most important takeaways from the document)
+```bash
+# 1. Clone and install
+git clone https://github.com/gnanadeep52/Multiagent_MCP.git
+cd Multiagent_MCP
+pip install -r requirements.txt
 
-5. The chat input box appears again — you can ask follow-up questions or type `quit` / `exit` / `q` to stop
+# 2. Create .env file
+echo "GOOGLE_API_KEY=your_google_api_key" >> .env
+echo "TAVILY_API_KEY=your_tavily_api_key" >> .env
 
-All generated content stays in the chat history until you close or clear it.
+# 3. Launch the Streamlit app
+streamlit run app.py
+```
 
+Type any topic in the chat box. The system will stream back: **Outline → Full Document → Key Summary Points**.
 
+---
 
-## High-Level Architecture
+## Key Design Decisions
 
-The system has three layers:
+**Why MCP instead of direct tool calls?**  
+MCP creates a clean separation between agents (logic) and tools (capabilities). Agents cannot directly access the web or filesystem — they must go through the tool server. This mirrors production agentic architectures where tool access is auditable and controlled.
 
-- Agents – Do the actual work (searching, scraping, writing)
+**Why LangGraph over a simple chain?**  
+LangGraph allows stateful, conditional agent execution. Each node (agent) passes structured state forward, enabling the doc-writer to use the note-taker’s exact outline rather than re-generating it.
 
-- Graphs – Define the order in which agents run
+**Why async throughout?**  
+Both agents run async to avoid blocking the Streamlit UI during long tool calls (web search, scraping). This keeps the interface responsive during multi-step generation.
 
-- Tool Server (MCP) – Provides external capabilities like web search and file writing
+---
 
-## Internal Process
+## Sample Output
 
-1. Supervisor starts the workflow
+For topic: *"How does RAG work in production?"*
 
-- The supervisor graph is the entry point.
+**Outline:**
+- 1. What is RAG and why it matters
+- 2. Core components: retriever, vector store, LLM
+- 3. Production challenges: latency, freshness, evaluation
+- 4. AWS Bedrock + OpenSearch production pattern
+- 5. Monitoring and drift detection
 
-- It controls the full flow 
+**Full Document:** Complete markdown report (~800 words)  
+**Key Summary Points:** 6 concise bullet takeaways
 
-2. Research process
+---
 
-     The research graph runs first.
-
-   Step 1: Search
-
-    - The system takes the user’s question
-
-    - An LLM converts it into a concise search query
-
-    - A search tool (Tavily) is called via the tool server
-
-    - Search results are returned 
-
-    Step 2: Scrape
-
-    - URLs are extracted from the search results
-
-    - The system fetches the webpages
-
-    - The text content of those pages is collected
-
-At the end of this phase, the system has:
-
-Raw search results
-
-Scraped webpage content
-
-3. Writing process
-
-    After research finishes, the writing graph runs.
-
-    Step 1: Outline creation
-
-    - An LLM generates a structured outline for the topic
-
-    - The outline is saved to a file (outline.txt)
-
-    Step 2: Document writing
-
-    - Another LLM uses the topic and outline
-
-    - A full document is written
-
-    - The final output is saved to a file (answer.txt)
-
-
-## How Agents Work
-
-Each agent is a small, focused function:
-
-1. Search agent
-
- - Decides what to search
-
- - Calls the web search tool
-
-2. Web scraper agent
-
-- Extracts URLs
-
-- Reads webpage content
-
-3. Note taker agent
-
-- Generates an outline
-
-- Saves it as a file
-
-4. Document writer agent
-
-- Writes the final explanation
-
-- Saves it as a file
-
-## How Graphs Work
-
-Graphs define execution order, not logic.
-
-- Each graph:
-
-1. Has a shared state
-
-2. Runs nodes one after another
-
-3. Passes data forward
-
-- There are three graphs:
-
-1. Research graph – search → scrape
-
-2. Writing graph – outline → write
-
-3. Supervisor graph – research → writing
-
-
-## How Tools Work (MCP Server)
-
-The system does not directly access the web or filesystem.
-
-Instead, it uses a tool server that exposes controlled tools.
-
-- Available tools
-
-  1. Web search tool
-
-     Searches the web using Tavily
-
-  2. Web scraping tool
-
-     Fetches webpage content
-
-  3. Create outline
-
-     Writes outline text to a file
-
-  4. Write document
-
-     Writes full documents to a file
-
-  5. Read / edit document
-
-     Reads or modifies saved files
-
-Agents call these tools through an MCP client.
-
-
- ## Outputs
-
-All generated files are saved in a temporary directory:
-
-outline.txt – generated outline
-
-answer.txt – final document
-
-These files represent the system’s final output.
-
-
-
-# References
-
-https://modelcontextprotocol.io/docs/develop/build-server
-
-https://modelcontextprotocol.io/docs/develop/build-client
+## References
+- [MCP Documentation](https://modelcontextprotocol.io/docs/develop/build-server)
+- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
+- [Tavily Search API](https://tavily.com/)
