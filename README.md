@@ -1,9 +1,8 @@
-# DeepDraft — Autonomous Multi-Agent Research & Document Generation
+# DeepDraft — Multi-Agent Research & Writing (MCP + LangGraph)
 
-A production-style **multi-agent AI system** that takes any topic or question and autonomously researches the web, builds a structured outline, writes a full document, and summarizes key takeaways — all orchestrated via **LangGraph**, **MCP (Model Context Protocol)** tool server, and a **Streamlit** chat interface.
+DeepDraft is a **multi-agent system** that takes a topic, automatically researches the web, creates an outline, writes a full document, and then summarizes it — using LangGraph agents, a Model Context Protocol (MCP) tool server, and a Streamlit UI.
 
-> **Skills demonstrated:** Multi-agent orchestration · LangGraph · MCP protocol · Agentic tool use · Streamlit · Tavily web search · Async agent pipelines
-
+> Skills: multi-agent orchestration, MCP tool server, LangGraph graphs, Streamlit UI.
 ---
 
 ## What It Does
